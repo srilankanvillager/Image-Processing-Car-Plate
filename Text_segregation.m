@@ -58,6 +58,7 @@ idisp(BW2);
 area=zeros(numel(text),1);
 text(text_indices).plot_box('g');
 
+
 % for n=1:numel(text)
 %     if text(n).parent==1
 %         text(n)
