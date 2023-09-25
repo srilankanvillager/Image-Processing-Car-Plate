@@ -2,7 +2,7 @@ close all;clear;clc;
 %letter_templates=imageDatastore("Template_letters");
 
 
-car_plate="Car_plate_numbers\A5WRF5-transformed.jpeg";
+car_plate="Car_plate_numbers\295671-transformed.jpeg";
 letter_text=input("Choose the letter you want\n",'s');
 letter_address=strcat("Template_letters\",letter_text,".jpg");
 
@@ -13,7 +13,7 @@ plate=oddandeven(plate);
 edges=icanny(plate);
 figure, montage({plate, edges}) ; 
 grid on , axis on, title('Car plate, car plate with edges') ;
-
+ 
 %% Find Hough Transform
 h = Hough(edges)
 figure, h.show(), grid on ,
@@ -39,13 +39,6 @@ end
 
 figure, idisp(plate) ; grid on,
 
-
-% rho_lines=zeros(numel(lines),2);
-% for n=1:numel(lines)
-%     rho_lines(n,1)=lines(n).rho;
-%     rho_lines(n,2)=n;
-% end
-
 rho_lines=sortrows(rho_lines,1);
 
 disp("Calculating differences")
@@ -70,6 +63,8 @@ figure
 idisp(cropped_image);
 title("Cropped version");
 
+%TODO:Create Hough horizontal edge detection 
+
 plate=morphology(cropped_image,round(lines(rho_lines(Nj+1,2)).rho-lines(rho_lines(Nj,2)).rho));
 plate=medfilt2(plate, [4 4]);
 
@@ -85,7 +80,7 @@ title("After median filtering");
 % idisp(plate);
 % title('BW after median filtering')
 
-%%
+%% Finding blobs in image, identifying letters, reordering them, 
 figure
 idisp(plate)
 title("Blob imaging")
@@ -97,14 +92,55 @@ for n=1:numel(letters)
     end
 end
 
+
+
 letter_height=mode(sort(letter_heights));
+%letter_height=weightedAverage(letter_heights);
 
+
+%plate_letters(n)=[];
+position=1;
 for n=1:numel(letter_heights)
-if abs(((letter_heights(n)-letter_height)/letter_height)*100) <=1
-    letters(n).plot_box('g');
-end
+    if abs(((letter_heights(n)-letter_height)/letter_height)*100) <=1
+        plate_letters(position)=letters(n);
+        letters(n).plot_box('g');
+        position=position+1;
+    end
 end
 
+% Extract the values from the objects into a numerical array
+letter_positions = [plate_letters.uc];
+
+% Sort the values in ascending order and obtain the sorted indices
+[sortedValues, sortedIndices] = sort(letter_positions);
+
+% Rearrange the objects based on the sorted indices
+sortedObjectArray = objectArray(sortedIndices);
+
+
+% Display the sorted objects based on their value property
+for i = 1:length(sortedObjectArray)
+    fprintf('Object %d: value = %d\n', i, sortedObjectArray(i).value);
+end
+
+% for n=1:numel(plate_letters)
+%     plate_letter_images(n)=plate(plate_letters(n).vmin:plate_letters(n).vmax,plate_letters(n).umin:plate_letters(n).umax,:);
+% end
+
+plate_letter_collection=zeros(1,numel(plate_letters));
+figure
+title("Letter")
+for n=1:numel(plate_letters)
+    %TODO: ERROR fix:   
+    %plate_letter_collection(n)=plate(plate_letters(n).vmin:plate_letters(n).vmax,plate_letters(n).umin:plate_letters(n).umax,:);
+    idisp(plate(plate_letters(n).vmin:plate_letters(n).vmax,plate_letters(n).umin:plate_letters(n).umax,:));
+%idisp(plate_letter_collection(n,1));
+    pause(1);
+end
+
+
+
+%%
 letter=blackandwhiteletter(letter_address);
 letter=imresize(letter,letter_height/height(letter));
 letter=oddandeven(letter);
@@ -217,6 +253,23 @@ else
 end
 end
 
+function weightedAvg = weightedAverage(inputArray)
+    % Initialize variables to store sum and count for each unique element
+    uniqueElements = unique(inputArray);
+    sumByElement = zeros(size(uniqueElements));
+    countByElement = zeros(size(uniqueElements));
+    
+    % Calculate sum and count for each unique element
+    for i = 1:length(uniqueElements)
+        element = uniqueElements(i);
+        elementIndices = (inputArray == element);
+        sumByElement(i) = sum(elementIndices .* inputArray);
+        countByElement(i) = sum(elementIndices);
+    end
+    
+    % Calculate the weighted average
+    weightedAvg = sum(sumByElement .* countByElement) / sum(countByElement);
+end
 
 
 

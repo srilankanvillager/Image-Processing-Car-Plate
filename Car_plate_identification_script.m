@@ -98,8 +98,6 @@ letter_height=mode(sort(letter_heights));
 %letter_height=weightedAverage(letter_heights);
 
 
-
-
 %plate_letters(n)=[];
 position=1;
 for n=1:numel(letter_heights)
@@ -110,6 +108,8 @@ for n=1:numel(letter_heights)
     end
 end
 
+plate_letters = sortPlateLettersByValue(plate_letters);
+
 
 % for n=1:numel(plate_letters)
 %     plate_letter_images(n)=plate(plate_letters(n).vmin:plate_letters(n).vmax,plate_letters(n).umin:plate_letters(n).umax,:);
@@ -119,9 +119,10 @@ plate_letter_collection=zeros(1,numel(plate_letters));
 figure
 title("Letter")
 for n=1:numel(plate_letters)
-    %TODO:FIX ERROR 
-    plate_letter_collection(n)=plate(plate_letters(n).vmin:plate_letters(n).vmax,plate_letters(n).umin:plate_letters(n).umax,:);
-    idisp(plate_letter_collection(n,1));
+    %TODO: ERROR fix:   
+    %plate_letter_collection(n)=plate(plate_letters(n).vmin:plate_letters(n).vmax,plate_letters(n).umin:plate_letters(n).umax,:);
+    idisp(plate(plate_letters(n).vmin:plate_letters(n).vmax,plate_letters(n).umin:plate_letters(n).umax,:));
+%idisp(plate_letter_collection(n,1));
     pause(1);
 end
 
@@ -212,6 +213,17 @@ image=gs;
 figure
 idisp(plate);
 title('before');
+end
+
+function [plate_letters] = sortPlateLettersByValue(plate_letters)
+    % Extract the values from the objects into a numerical array
+    letter_positions = [plate_letters.uc];
+
+    % Sort the values in ascending order and obtain the sorted indices
+    [sortedValues, sortedIndices] = sort(letter_positions);
+
+    % Rearrange the objects based on the sorted indices
+    plate_letters = plate_letters(sortedIndices);
 end
 
 
