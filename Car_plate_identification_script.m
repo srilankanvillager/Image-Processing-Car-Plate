@@ -109,20 +109,13 @@ for n=1:numel(letter_heights)
 end
 
 plate_letters = sortPlateLettersByValue(plate_letters);
+plate_letter_collection=cell(length(plate_letters), 1);
 
-
-% for n=1:numel(plate_letters)
-%     plate_letter_images(n)=plate(plate_letters(n).vmin:plate_letters(n).vmax,plate_letters(n).umin:plate_letters(n).umax,:);
-% end
-
-plate_letter_collection=zeros(1,numel(plate_letters));
 figure
 title("Letter")
 for n=1:numel(plate_letters)
-    %TODO: ERROR fix:   
-    %plate_letter_collection(n)=plate(plate_letters(n).vmin:plate_letters(n).vmax,plate_letters(n).umin:plate_letters(n).umax,:);
-    idisp(plate(plate_letters(n).vmin:plate_letters(n).vmax,plate_letters(n).umin:plate_letters(n).umax,:));
-%idisp(plate_letter_collection(n,1));
+    plate_letter_collection{n}=plate(plate_letters(n).vmin:plate_letters(n).vmax,plate_letters(n).umin:plate_letters(n).umax,:);
+    idisp(plate_letter_collection{n});
     pause(1);
 end
 
