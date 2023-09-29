@@ -1,8 +1,8 @@
-close all;clear;%clc;
+close all;clear; clc;
 letter_templates=imageDatastore("Template_letters");
 
 text_plate_letters="";
-car_plate="Car_plate_numbers\A5WRF5-transformed.jpeg";
+car_plate="Car_plate_numbers\plate4.jpg";
 % letter_text=input("Choose the letter you want\n",'s');
 % letter_address=strcat("Template_letters\",letter_text,".jpg");
 
@@ -64,6 +64,8 @@ idisp(cropped_image);
 title("Cropped version");
 
 plate=morphology(cropped_image,round(lines(rho_lines(Nj+1,2)).rho-lines(rho_lines(Nj,2)).rho));
+%plate=morphology(cropped_image,300);
+
 plate=medfilt2(plate, [4 4]);
 
 % figure
@@ -122,15 +124,58 @@ for n=1:numel(letters)
 end
 
 
+% Choose the number of clusters (K)
+K = 4; % You need to decide the number of clusters
 
-letter_height=mode(sort(letter_heights));
-%letter_height=weightedAverage(letter_heights);
+% Perform k-means clustering
+[idx, centers] = kmeans(letter_heights, K);
+
+% Initialize arrays to store cluster heights and cluster sizes
+cluster_heights = zeros(1, K);
+cluster_sizes = zeros(1, K);
+
+max_cluster_size = 0; % Initialize maximum cluster size
+max_cluster_height = 0; % Initialize maximum cluster height
+max_valid_cluster_size = 12;
 
 
-%plate_letters(n)=[];
+% Calculate the mean height for each cluster and count cluster sizes
+for k = 1:K
+    cluster_indices = (idx == k);
+    cluster_heights(k) = mean(letter_heights(cluster_indices));
+    cluster_sizes(k) = sum(cluster_indices);
+
+    if cluster_sizes(k) < max_valid_cluster_size
+        if cluster_sizes(k) > max_cluster_size
+            max_cluster_size = cluster_sizes(k);
+            max_cluster_height = cluster_heights(k);
+        end
+    end
+end
+
+% Display the estimated letter heights and cluster sizes
+fprintf('Estimated Letter Heights and Cluster Sizes:\n');
+for k = 1:K
+    fprintf('Cluster %d: Height=%.2f, Size=%d\n', k, cluster_heights(k), cluster_sizes(k));
+end
+
+% Display the cluster height of the cluster with the most elements
+fprintf('Cluster with the Most Elements: Height=%.2f, Size=%d\n', max_cluster_height, max_cluster_size);
+
+%letter_height=cluster_heights(find(cluster_heights==max(cluster_heights(find(cluster_sizes<9)))));
+letter_height=max(cluster_heights(find(cluster_sizes<9)));
+%letter_height=300;
+
+figure
+idisp(plate)
+
+plate_letters=RegionFeature.empty(0);
+
+
 position=1;
 for n=1:numel(letter_heights)
-    if abs(((letter_heights(n)-letter_height)/letter_height)*100) <=1
+    letter_centre=[letters(n).uc, letters(n).vc];
+    if abs(((letter_heights(n)-letter_height)/letter_height)*100) <=50.0
         plate_letters(position)=letters(n);
         letters(n).plot_box('g');
         position=position+1;
@@ -138,14 +183,38 @@ for n=1:numel(letter_heights)
 end
 
 plate_letters = sortPlateLettersByValue(plate_letters);
+
+for n=1:numel(plate_letters)
+    possible_letter=plate_letters(n);
+    if n==1
+        plate_letters(n)=possible_letter;
+    end
+    if n~=1
+        percentage_difference= abs((possible_letter.uc-plate_letters(n-1).uc)/plate_letters(numel(plate_letters)).uc)*100;
+        if percentage_difference<=5
+            disp("Same letter")
+            plate_letters(n-1)=[];
+        end
+    end
+    if n==numel(plate_letters)
+        break
+    end
+end
+
+nonEmptyIndices = ~arrayfun(@isempty, plate_letters);
+
+% Resize the array to remove empty elements
+plate_letters = plate_letters(nonEmptyIndices);
+
+
 plate_letter_collection=cell(length(plate_letters), 1);
 
 figure
 title("Letter")
 for n=1:numel(plate_letters)
     plate_letter_collection{n}=plate(plate_letters(n).vmin:plate_letters(n).vmax,plate_letters(n).umin:plate_letters(n).umax,:);
-    % idisp(plate_letter_collection{n});
-    % pause(1);
+    idisp(plate_letter_collection{n});
+    pause(1);
 end
 
 

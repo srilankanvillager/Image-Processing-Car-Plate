@@ -3,41 +3,55 @@
 % Ref: Peter Corke Book, p. 184
 % A solid square rotated counter-clockwise
 % by theta degrees
+close all; clear;
 %% Read Test Pattern and Rotate
-im = testpattern('squares', 256, 256, 128);
-% ir = imrotate(im,30,'bilinear'); % MATLAB 
-theta = -30 ; % i degrees
-ir  = irotate(im, theta );  
-figure, montage({im, ir}) ; grid on, 
 
-%% Find edges using Canny Algorithm
-edges = icanny(ir);
-figure, montage({im,ir, edges}) ; 
-grid on , axis on, title('sq, rot sq, edgesCanny') ;
-% figure, idisp(1-edges), grid on ; axis on;
+% figure, montage({im, ir}) ; grid on, 
+I=(im2gray(imread("Canvas_scripts\295671-transformed.jpeg")));
+figure
+idisp((I));
 
+%% Edge detection with sobel kernel
+vertical_edges = edge(I, 'Sobel', 'vertical');
+subplot(1, 2, 1);
+imshow(I, []);
+title('Original Binary Image');
+figure
+idisp(vertical_edges);
 
-%% Find Hough Transform
-h = Hough(edges)
-figure, h.show(), grid on ,
-lines = h.lines()
-% shows all 9 detected lines some are very close to each other
-idisp(ir) , grid on, title('Detected 9 lines') ;
-h.plot('g')
+subplot(1, 2, 2);
+imshow(vertical_edges, []);
+title('Vertical Edges (Sobel)');
+
 
 %% nonlocal maxima supression
-h1 = Hough(edges, 'suppress', 5)
-figure, h.show(), grid on ,
-lines = h1.lines()
-% Now we get only the FOUR dominant lines.
-% The detected lines can be projected onto 
-% the original image
-figure, idisp(ir);
-h1.plot('g')
+[H,T,R]=hough(vertical_edges);
+P  = houghpeaks(H,5,'threshold',ceil(0.3*max(H(:))));
+lines = houghlines(~I,T,R,P,'FillGap',5);
 
-%% See specific  lines
-figure, idisp(ir) ; grid on,
-% Display first Nj major lines
-Nj = 2 ; % change Nj values and see
-lines(1:Nj).plot('r.');
+for n=1:numel(lines)
+    I=insertShape(I,'line',[lines(n).point1(1),lines(n).point1(2),lines(n).point2(1),lines(n).point2(2)]);
+end
+figure
+idisp(I);
+title("Vertical edges")
+
+max_difference=0;
+index=0;
+for n=1:numel(lines)
+    difference=abs(lines(1).point1(1)-lines(n).point1(1));
+    if difference>max_difference
+        max_difference=difference;
+        index=n;
+    end
+end
+
+
+
+point1=lines(1).point1(1);
+point2=lines(index).point1(1);
+cropped_image=I(:,point2:point1,:);
+figure
+idisp(cropped_image);
+title("Vertically Cropped version");
 

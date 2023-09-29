@@ -1,8 +1,8 @@
-close all;clear;%clc;
+close all;clear; clc;
 letter_templates=imageDatastore("Template_letters");
 
 text_plate_letters="";
-car_plate="Car_plate_numbers\295671-transformed.jpeg";
+car_plate="Car_plate_numbers\plate4.jpg";
 % letter_text=input("Choose the letter you want\n",'s');
 % letter_address=strcat("Template_letters\",letter_text,".jpg");
 
@@ -14,7 +14,7 @@ edges=icanny(plate);
 figure, montage({plate, edges}) ; 
 grid on , axis on, title('Car plate, car plate with edges') ;
  
-%% Find Hough Transform
+%% Find Hough Horizontal edges
 h = Hough(edges)
 figure, h.show(), grid on ,
 lines = h.lines()
@@ -63,22 +63,53 @@ figure
 idisp(cropped_image);
 title("Cropped version");
 
-%TODO:Create Hough horizontal edge detection 
-
 plate=morphology(cropped_image,round(lines(rho_lines(Nj+1,2)).rho-lines(rho_lines(Nj,2)).rho));
+%plate=morphology(cropped_image,300);
+
 plate=medfilt2(plate, [4 4]);
 
-figure
-idisp(plate);
-title("After median filtering");
+% figure
+% idisp(plate);
+% title("After median filtering");
 % for n=1:Nj
 %     lines(Nj).plot('r.');
 % end
 
-% 
-% figure(Name='BW after median filtering');
-% idisp(plate);
-% title('BW after median filtering')
+%% Vertical Hough edge transform
+
+vertical_edges = edge(plate, 'Sobel', 'vertical');
+
+% nonlocal maxima supression
+[H,T,R]=hough(vertical_edges);
+P  = houghpeaks(H,5,'threshold',ceil(0.6*max(H(:))));
+lines = houghlines(vertical_edges,T,R,P,'FillGap',5);
+
+for n=1:numel(lines)
+    plate_vertical=insertShape(double(plate),'line',[lines(n).point1(1),lines(n).point1(2),lines(n).point2(1),lines(n).point2(2)],LineWidth=5);
+end
+figure
+idisp(plate_vertical);
+title("Vertical edges")
+title("Vertical edges")
+
+max_difference=0;
+index=0;
+for n=1:numel(lines)
+    difference=abs(lines(1).point1(1)-lines(n).point1(1));
+    if difference>max_difference
+        max_difference=difference;
+        index=n;
+    end
+end
+
+point1=lines(1).point1(1);
+point2=lines(index).point1(1);
+
+plate=plate(:,min(point1,point2):max(point1,point2),:);
+figure
+idisp(plate);
+title("Cropped vertical version");
+
 
 %% Finding blobs in image, identifying letters, reordering them, 
 figure
@@ -93,15 +124,58 @@ for n=1:numel(letters)
 end
 
 
+% Choose the number of clusters (K)
+K = 4; % You need to decide the number of clusters
 
-letter_height=mode(sort(letter_heights));
-%letter_height=weightedAverage(letter_heights);
+% Perform k-means clustering
+[idx, centers] = kmeans(letter_heights, K);
+
+% Initialize arrays to store cluster heights and cluster sizes
+cluster_heights = zeros(1, K);
+cluster_sizes = zeros(1, K);
+
+max_cluster_size = 0; % Initialize maximum cluster size
+max_cluster_height = 0; % Initialize maximum cluster height
+max_valid_cluster_size = 12;
 
 
-%plate_letters(n)=[];
+% Calculate the mean height for each cluster and count cluster sizes
+for k = 1:K
+    cluster_indices = (idx == k);
+    cluster_heights(k) = mean(letter_heights(cluster_indices));
+    cluster_sizes(k) = sum(cluster_indices);
+
+    if cluster_sizes(k) < max_valid_cluster_size
+        if cluster_sizes(k) > max_cluster_size
+            max_cluster_size = cluster_sizes(k);
+            max_cluster_height = cluster_heights(k);
+        end
+    end
+end
+
+% Display the estimated letter heights and cluster sizes
+fprintf('Estimated Letter Heights and Cluster Sizes:\n');
+for k = 1:K
+    fprintf('Cluster %d: Height=%.2f, Size=%d\n', k, cluster_heights(k), cluster_sizes(k));
+end
+
+% Display the cluster height of the cluster with the most elements
+fprintf('Cluster with the Most Elements: Height=%.2f, Size=%d\n', max_cluster_height, max_cluster_size);
+
+%letter_height=cluster_heights(find(cluster_heights==max(cluster_heights(find(cluster_sizes<9)))));
+letter_height=max(cluster_heights(find(cluster_sizes<9)));
+%letter_height=300;
+
+figure
+idisp(plate)
+
+plate_letters=RegionFeature.empty(0);
+
+
 position=1;
 for n=1:numel(letter_heights)
-    if abs(((letter_heights(n)-letter_height)/letter_height)*100) <=1
+    letter_centre=[letters(n).uc, letters(n).vc];
+    if abs(((letter_heights(n)-letter_height)/letter_height)*100) <=50.0
         plate_letters(position)=letters(n);
         letters(n).plot_box('g');
         position=position+1;
@@ -109,14 +183,38 @@ for n=1:numel(letter_heights)
 end
 
 plate_letters = sortPlateLettersByValue(plate_letters);
+
+for n=1:numel(plate_letters)
+    possible_letter=plate_letters(n);
+    if n==1
+        plate_letters(n)=possible_letter;
+    end
+    if n~=1
+        percentage_difference= abs((possible_letter.uc-plate_letters(n-1).uc)/plate_letters(numel(plate_letters)).uc)*100;
+        if percentage_difference<=5
+            disp("Same letter")
+            plate_letters(n-1)=[];
+        end
+    end
+    if n==numel(plate_letters)
+        break
+    end
+end
+
+nonEmptyIndices = ~arrayfun(@isempty, plate_letters);
+
+% Resize the array to remove empty elements
+plate_letters = plate_letters(nonEmptyIndices);
+
+
 plate_letter_collection=cell(length(plate_letters), 1);
 
 figure
 title("Letter")
 for n=1:numel(plate_letters)
     plate_letter_collection{n}=plate(plate_letters(n).vmin:plate_letters(n).vmax,plate_letters(n).umin:plate_letters(n).umax,:);
-    % idisp(plate_letter_collection{n});
-    % pause(1);
+    idisp(plate_letter_collection{n});
+    pause(1);
 end
 
 
@@ -129,37 +227,6 @@ for n=1:numel(matches)
 end
 
 disp(text);
-
-%% Function rewriting
-letter=blackandwhiteletter(letter_address);
-letter=imresize(letter,letter_height/height(letter));
-letter=oddandeven(letter);
-
-S = isimilarity(letter, plate, @zncc);
-% figure,
-% idisp(S, 'colormap', 'jet', 'bar')
-% title('zncc between letter and plate');
-
-mi = min(min(S));
-mx = max(max(S));
-disp('min and max of S');
-disp([mi mx]);
-
-% the second option, h = 1 --> w =2h+1, finds max in a 3x3 window
-[mx, p] = peak2(S, 1, 'npeaks', 5);
-% mx = value of peaks
-% p = coordinate (u,v) of corresponding peak.
-disp('Five zncc peak values');
-disp(mx);
-
-disp('Corresponding u,v coordinates');
-disp(p);
-
-figure, idisp(plate);
-plot_circle(p, 20, 'edgecolor','b');
-plot_point(p, 'sequence', 'bold', 'textsize', 18, 'textcolor', 'r');
-title('Five peaks of zncc shown on plate image');
-
 
 %% Function Definitions
 
