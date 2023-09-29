@@ -2,7 +2,7 @@ close all;clear; clc;
 letter_templates=imageDatastore("Template_letters");
 
 text_plate_letters="";
-car_plate="Car_plate_numbers\plate1.jpeg";
+car_plate="Car_plate_numbers\plate7.jpg";
 
 plate=blackandwhite(car_plate);
 plate=oddandeven(plate);
@@ -204,7 +204,7 @@ for n=1:numel(plate_letters)
                 plate_letters(n-1)=[];
             end
             if possible_letter.area < plate_letters(n-1).area
-                plate_letters(n)-
+                plate_letters(n)=[];
             end
         end
     end
@@ -230,9 +230,10 @@ for n=1:numel(plate_letters)
 end
 
 
+
 %% Iterating over every letter in the blob image matrix to find template letter with highest match
 
-matches=findBestTemplateMatchWithResize(plate_letter_collection,letter_templates);
+matches=findBestMatches(plate_letter_collection, letter_templates);
 text="";
 for n=1:numel(matches)
     text=strcat(text,stringsplitter(matches{n}));
@@ -339,39 +340,56 @@ function weightedAvg = weightedAverage(inputArray)
 end
 
 
-
-function plate_letter_positions = findBestTemplateMatchWithResize(plate_letter_collection, letter_templates)
-plate_letter_positions=cell(numel(plate_letter_collection),1);
-    for n=1:numel(plate_letter_collection)
-        disp("---")
-        currentImage = double(plate_letter_collection{n});
-        bestMatchScore = inf;  % Initialize with negative infinity
-        bestMatchIndex = -1;
-        for m=1:numel(letter_templates.Files)
-            letter_template=double(rgb2gray(iread(letter_templates.Files{m})));
-            letter_template=imresize(letter_template,size(currentImage));
-            similarityScore = immse(currentImage, letter_template);
-            idisp(similarityScore)
+%%
+function bestMatches = findBestMatches(blobImages, templateDatabase)
+    % Initialize a cell array to store the best match file names
+    bestMatches = cell(size(blobImages));
+    
+    % Iterate through each blob letter image
+    for i = 1:length(blobImages)
+        % Get the current blob letter image
+        blobImage = double(blobImages{i});
+        
+        % Initialize variables to keep track of the best match
+        bestMatchScore = inf; % Initialize with a high value
+        bestMatchIndex = 0;   % Index of the best match template
+        
+        % Iterate through each template image in the database
+        for j = 1:length(templateDatabase.Files)
+            % Get the current template image
+            templateImage = double(imread(templateDatabase.Files{j}));
+            
+            % Resize the template image to match the size of the blob image
+            templateImage = imresize(templateImage, size(blobImage));
+            
+            % Calculate a similarity score between the blob and template images
+            % You can use a suitable similarity metric (e.g., mean squared error, correlation)
+            similarityScore = calculateSimilarity(blobImage, templateImage);
+            
+            % Update the best match if the current score is better
             if similarityScore < bestMatchScore
                 bestMatchScore = similarityScore;
-                bestMatchIndex = m;
-                disp(letter_templates.Files{m});
+                bestMatchIndex = j;
             end
         end
-        plate_letter_positions{n,1}=letter_templates.Files{bestMatchIndex};
+        
+        % Store the file name of the best match in the result array
+        bestMatches{i} = templateDatabase.Files{bestMatchIndex};
     end
 end
 
+function similarityScore = calculateSimilarity(image1, image2)
+    % Calculate the similarity score between two images
+    % You can use a suitable metric such as mean squared error or correlation
+    % For example, using mean squared error:
+    errorImage = image1 - image2;
+    squaredError = errorImage.^2;
+    meanSquaredError = mean(squaredError(:));
+    similarityScore = -meanSquaredError; % Negative for lower error values being better
+end
+
+%%
 function letter=stringsplitter(address)
     % Define the input file path as a string
-    filePath = 'C:\Users\PC\Desktop\MATLAB minor project\Template_letters\N.jpg';
-    
-    % Use fileparts to get the base name of the file
-    [~, baseFileName, ~] = fileparts(filePath);
-    
-    % Split the base file name using the file separator (assuming '\' or '/')
-    fileNameParts = strsplit(baseFileName, filesep);
-    
-    % The last part of the split string is the file name
-    letter = fileNameParts{end};
+parts = strsplit(address, '\');
 end
