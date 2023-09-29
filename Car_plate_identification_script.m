@@ -2,7 +2,7 @@ close all;clear;%clc;
 letter_templates=imageDatastore("Template_letters");
 
 text_plate_letters="";
-car_plate="Car_plate_numbers\295671-transformed.jpeg";
+car_plate="Car_plate_numbers\A5WRF5-transformed.jpeg";
 % letter_text=input("Choose the letter you want\n",'s');
 % letter_address=strcat("Template_letters\",letter_text,".jpg");
 
@@ -14,7 +14,7 @@ edges=icanny(plate);
 figure, montage({plate, edges}) ; 
 grid on , axis on, title('Car plate, car plate with edges') ;
  
-%% Find Hough Transform
+%% Find Hough Horizontal edges
 h = Hough(edges)
 figure, h.show(), grid on ,
 lines = h.lines()
@@ -63,22 +63,51 @@ figure
 idisp(cropped_image);
 title("Cropped version");
 
-%TODO:Create Hough horizontal edge detection 
-
 plate=morphology(cropped_image,round(lines(rho_lines(Nj+1,2)).rho-lines(rho_lines(Nj,2)).rho));
 plate=medfilt2(plate, [4 4]);
 
-figure
-idisp(plate);
-title("After median filtering");
+% figure
+% idisp(plate);
+% title("After median filtering");
 % for n=1:Nj
 %     lines(Nj).plot('r.');
 % end
 
-% 
-% figure(Name='BW after median filtering');
-% idisp(plate);
-% title('BW after median filtering')
+%% Vertical Hough edge transform
+
+vertical_edges = edge(plate, 'Sobel', 'vertical');
+
+% nonlocal maxima supression
+[H,T,R]=hough(vertical_edges);
+P  = houghpeaks(H,5,'threshold',ceil(0.6*max(H(:))));
+lines = houghlines(vertical_edges,T,R,P,'FillGap',5);
+
+for n=1:numel(lines)
+    plate_vertical=insertShape(double(plate),'line',[lines(n).point1(1),lines(n).point1(2),lines(n).point2(1),lines(n).point2(2)],LineWidth=5);
+end
+figure
+idisp(plate_vertical);
+title("Vertical edges")
+title("Vertical edges")
+
+max_difference=0;
+index=0;
+for n=1:numel(lines)
+    difference=abs(lines(1).point1(1)-lines(n).point1(1));
+    if difference>max_difference
+        max_difference=difference;
+        index=n;
+    end
+end
+
+point1=lines(1).point1(1);
+point2=lines(index).point1(1);
+
+plate=plate(:,min(point1,point2):max(point1,point2),:);
+figure
+idisp(plate);
+title("Cropped vertical version");
+
 
 %% Finding blobs in image, identifying letters, reordering them, 
 figure
@@ -129,37 +158,6 @@ for n=1:numel(matches)
 end
 
 disp(text);
-
-%% Function rewriting
-letter=blackandwhiteletter(letter_address);
-letter=imresize(letter,letter_height/height(letter));
-letter=oddandeven(letter);
-
-S = isimilarity(letter, plate, @zncc);
-% figure,
-% idisp(S, 'colormap', 'jet', 'bar')
-% title('zncc between letter and plate');
-
-mi = min(min(S));
-mx = max(max(S));
-disp('min and max of S');
-disp([mi mx]);
-
-% the second option, h = 1 --> w =2h+1, finds max in a 3x3 window
-[mx, p] = peak2(S, 1, 'npeaks', 5);
-% mx = value of peaks
-% p = coordinate (u,v) of corresponding peak.
-disp('Five zncc peak values');
-disp(mx);
-
-disp('Corresponding u,v coordinates');
-disp(p);
-
-figure, idisp(plate);
-plot_circle(p, 20, 'edgecolor','b');
-plot_point(p, 'sequence', 'bold', 'textsize', 18, 'textcolor', 'r');
-title('Five peaks of zncc shown on plate image');
-
 
 %% Function Definitions
 
