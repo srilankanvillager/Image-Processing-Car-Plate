@@ -2,13 +2,12 @@ close all;clear; clc;
 letter_templates=imageDatastore("Template_letters");
 
 text_plate_letters="";
-car_plate="Car_plate_numbers\plate4.jpg";
-% letter_text=input("Choose the letter you want\n",'s');
-% letter_address=strcat("Template_letters\",letter_text,".jpg");
-
+car_plate="Car_plate_numbers\plate7.jpg";
 
 plate=blackandwhite(car_plate);
 plate=oddandeven(plate);
+
+original_plate=plate;
 
 edges=icanny(plate);
 figure, montage({plate, edges}) ; 
@@ -58,7 +57,11 @@ Nj=find(difference==max(difference));
 lines(rho_lines(Nj,2)).plot('r.');
 lines(rho_lines(Nj+1,2)).plot('r.');
 
-cropped_image=plate(lines(rho_lines(Nj,2)).rho:lines(rho_lines(Nj+1,2)).rho,:,:);
+horizontalpoint1=lines(rho_lines(Nj,2)).rho;
+horizontalpoint2=lines(rho_lines(Nj+1,2)).rho;
+
+%cropped_image=plate(lines(rho_lines(Nj,2)).rho:lines(rho_lines(Nj+1,2)).rho,:,:);
+cropped_image=plate(horizontalpoint1:horizontalpoint2,:,:);
 figure
 idisp(cropped_image);
 title("Cropped version");
@@ -90,7 +93,6 @@ end
 figure
 idisp(plate_vertical);
 title("Vertical edges")
-title("Vertical edges")
 
 max_difference=0;
 index=0;
@@ -102,13 +104,21 @@ for n=1:numel(lines)
     end
 end
 
-point1=lines(1).point1(1);
-point2=lines(index).point1(1);
+verticalpoint1=lines(1).point1(1);
+verticalpoint2=lines(index).point1(1);
 
-plate=plate(:,min(point1,point2):max(point1,point2),:);
+plate=plate(:,min(verticalpoint1,verticalpoint2):max(verticalpoint1,verticalpoint2),:);
 figure
 idisp(plate);
 title("Cropped vertical version");
+
+%% Creating final image for blob analysis
+plate=original_plate(horizontalpoint1:horizontalpoint2,min(verticalpoint1,verticalpoint2):max(verticalpoint1,verticalpoint2),:);
+plate=morphology(plate,round(abs(horizontalpoint1-horizontalpoint2)));
+plate=medfilt2(plate, [4 4]);
+figure
+idisp(plate);
+title("Final image before blob processing");
 
 
 %% Finding blobs in image, identifying letters, reordering them, 
@@ -159,9 +169,6 @@ for k = 1:K
     fprintf('Cluster %d: Height=%.2f, Size=%d\n', k, cluster_heights(k), cluster_sizes(k));
 end
 
-% Display the cluster height of the cluster with the most elements
-fprintf('Cluster with the Most Elements: Height=%.2f, Size=%d\n', max_cluster_height, max_cluster_size);
-
 %letter_height=cluster_heights(find(cluster_heights==max(cluster_heights(find(cluster_sizes<9)))));
 letter_height=max(cluster_heights(find(cluster_sizes<9)));
 %letter_height=300;
@@ -191,12 +198,17 @@ for n=1:numel(plate_letters)
     end
     if n~=1
         percentage_difference= abs((possible_letter.uc-plate_letters(n-1).uc)/plate_letters(numel(plate_letters)).uc)*100;
-        if percentage_difference<=5
+        if percentage_difference<=7
             disp("Same letter")
-            plate_letters(n-1)=[];
+            if possible_letter.area > plate_letters(n-1).area
+                plate_letters(n-1)=[];
+            end
+            if possible_letter.area < plate_letters(n-1).area
+                plate_letters(n)=[];
+            end
         end
     end
-    if n==numel(plate_letters)
+    if n >= numel(plate_letters)
         break
     end
 end
@@ -240,19 +252,6 @@ image=gs;
 figure
 idisp(plate);
 title('before');
-
-%Uses morphology to seperate text from rest of bill
-% SEdisk = strel("rectangle",[87 width(plate)]);
-% Ibg = imclose(gs,SEdisk);
-% gsSub =  Ibg - gs;
-% gfilter=kgauss(2);
-% gsSub=iconv(gfilter,gsSub);
-% BW = ~imbinarize(gsSub);
-% BW=medfilt2(BW,[10,10]);
-% image=BW;
-% figure
-% idisp(image);
-% title('after');
 end
 
 function [image]=morphology(input,height)
@@ -376,38 +375,3 @@ function letter=stringsplitter(address)
     % The last part of the split string is the file name
     letter = fileNameParts{end};
 end
-
-
-% figure(Name='IBlobs BW');
-% idisp(BW);
-% text=iblobs(BW,'class',1);
-% for n = 1:numel(text)
-%     text(n).plot_box('g');
-% end
-
-
-
-% parent_numbers = [text.parent];
-% text_indices = find(parent_numbers ~=0 );
-% area=text(text_indices).area;
-% medianarea=median(sort(area));
-% lines=find(area==medianarea);
-% 
-% 
-% height=text(lines).vmax - text(lines).vmin;
-% letter_height=mean(height);
-% 
-% t
-% %Test to see whether average letter height obtained from blob analysis works better than original setting
-% % SEdisk = strel("disk",round(letter_height/2));
-% SEdisk = strel("disk", round(letter_height/2));
-% Ibg = imclose(gs,SEdisk);
-% gsSub =  Ibg - gs; 
-% BW2 = ~imbinarize(gsSub);
-% 
-% text=iblobs(BW2);
-% 
-% figure;
-% idisp(BW2);
-% area=zeros(numel(text),1);
-% text(text_indices).plot_box('g');
